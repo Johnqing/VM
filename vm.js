@@ -18,6 +18,10 @@
 	}
 
 })(this, function(VM, undefined){
+    var prefix = "vm-",
+        W3C = window.dispatchEvent,
+        // 切割字符串 'a,b,c'.replace(/[^, ]+/g)
+        regx = /[^, ]+/g;
 	// 定界符
 	var openTags = VM.openTags = '{{';
 	var closeTags = VM.closeTags = '}}';
@@ -33,19 +37,57 @@
 		return document.querySelector(id);		
 	}
 
-	var isType = function(type){
-		return function(obj){
-			return {}.toString.call(obj) == '[object '+type+']';
-		}
-	}
-
-	var isArray = isType('Array');
-
 	var each = function(obj, fn){
 		for (var i = obj.length - 1; i >= 0; i--) {
 			fn && fn.call(obj[i], i, obj[i]);
 		};
 	}
+
+    var event = {
+        /**
+         * 事件绑定
+         * @param el
+         * @param type
+         * @param fn
+         * @param phase
+         * @returns {*}
+         */
+        on: function(el, type, fn, phase){
+            phase = phase || false;
+            if (W3C) {
+                el.addEventListener(type, fn, phase);
+            } else {
+                el.attachEvent("on" + type, fn);
+            }
+            return fn;
+        }
+    }
+
+    //vm-duplex
+    var bindhandler = {
+        on: function(obj, value){
+            var text = getText(obj);
+            this.model[text] = value;
+        },
+        duplex: function(data, obj){
+            var that= this,
+                el = data,
+                v = el.value,
+                type = el.type,
+                evt = 'keyup';
+
+            if(/radio|checkbox|select/.test(type)){
+                v = '';
+                evt = 'change';
+            }
+
+            event.on(el, evt, function(){
+                bindhandler.on.call(that, obj, this.value);
+            });
+        }
+    }
+
+
 	// ie6 - 8
 	if(!Object.keys){
 		Object.keys = function(obj){
@@ -65,13 +107,22 @@
 	// ===================ie6-7 不支持，ie8有bug=====================
 	var defineProperty = Object.defineProperty;
 
-	// 
+    /**
+     * 获取文件
+      * @param node
+     * @returns {*}
+     */
 	function getText(node){
 		return node.textContent || node.innerText;
 	}
 
+    /**
+     * 设置文本
+     * @param node
+     * @param text
+     */
 	function setText(node, text){
-		if(node.textContent){
+		if(W3C){
 			node.textContent = text;
 			return;
 		}
@@ -102,7 +153,7 @@
 	function renderDOM(obj){
 		var that = this;
 		each(obj.attributes, function(){
-			render.call(that, this);
+			render.call(that, this, obj);
 		});
 
 		// 递归子节点
@@ -111,22 +162,32 @@
 			if (this.nodeType === 1) {
 				return renderDOM.call(that, this);
 			}
-			render.call(that, this);
+			render.call(that, this, obj);
 		});
 
 	}
 
-	function render(obj){
+	function render(obj, defObj){
 		var that = this,
-			defText = getText(obj),
-			text = renderTpl.call(that, defText, function(i){
-				that.mod[i].push({
-					node: obj,
-					cont: defText
-				});
-			});
+			defText = getText(obj);
+        var isPrefix = obj.nodeName.indexOf(prefix)
+        if(~isPrefix){
+            var name = obj.nodeName.slice(prefix.length);
+            that.bind(name, defObj, obj);
+            return;
+        }
+        var text = renderTpl.call(that, defText, function(i){
+            that.mod[i].push({
+                node: obj,
+                cont: defText
+            });
+        });
+
+
 		setText(obj, text)	
 	}
+
+
 
 	// ==============================================
 
@@ -139,16 +200,13 @@
 		this.mod = {};
 
 		this.init();
-
-		renderDOM.call(this, this.wp);
-
-
 	}
 
 	MVVM.prototype = {
 		init: function(){
 			this.getModel();
 			this.defMod();
+            renderDOM.call(this, this.wp);
 		},
 		defMod: function(){
 			var that = this;
@@ -175,7 +233,10 @@
 				});	
 			});
 			that.model = model;
-		}
+		},
+        bind: function(name, data, obj){
+            bindhandler[name].call(this, data, obj);
+        }
 	}
 
 	// api

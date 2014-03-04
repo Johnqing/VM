@@ -7,17 +7,26 @@
 <body>
 
 	<div id="demo">
-		<span>{{name}}</span>
-		<div>{{desc}}</div>
-	</div>
+        <h2>名字：</h2>
+        <div class="time">群主：{{name}}</div>
+        修改：<input type="text" vm-duplex="name" />
+        <h2>时间：</h2>
+        <div>时间：{{time}}</div>
+    </div>
 	<script src="../vm.js"></script>
 	<script>
 	var demo = VM.mvvm('#demo', {
 		model: {
-			name: 'John Liu',
-			desc: 'Yi yi yi ya ya!'	
-		}		
+            name: 'John Liu',
+            time: Date()
+		}
 	});
+
+    setInterval(function(){
+        demo.model.time = Date()
+    }, 1000)
+
+
 	</script>
 </body>
 </html>
